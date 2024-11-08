@@ -7,12 +7,12 @@ from sklearn.cluster import KMeans, DBSCAN
 from sklearn.metrics import silhouette_score, calinski_harabasz_score
 from sklearn.decomposition import PCA
 
-
 def load_data(filepath):
     # Load data from CSV file
     data = pd.read_csv(filepath)
     return data
 
+# Load the dataset
 data = load_data("Wholesale customers data.csv")
 
 def preprocess_data(data):
@@ -25,33 +25,54 @@ def preprocess_data(data):
     scaled_features = scaler.fit_transform(features)
     return scaled_features
 
+# Preprocess the data
 preprocessed_data = preprocess_data(data)
 
-    # Split the dataset into training and testing sets.
+# Split the dataset into training and testing sets
 def split_data(data, test_size=0.2, random_state=42):
     train_data, test_data = train_test_split(data, test_size=test_size, random_state=random_state)
     return train_data, test_data
 
 train_data, test_data = split_data(preprocessed_data)
 
-# --- Apply K-Means clustering with different numbers of clusters.---
-# Evaluate using Silhouette Score and Inertia.
+# Visualization of clusters using PCA for easier interpretation
+def plot_pca_clusters(data, labels):
+    pca = PCA(n_components=2)
+    reduced_data = pca.fit_transform(data)
+    plt.scatter(reduced_data[:, 0], reduced_data[:, 1], c=labels, cmap='viridis', alpha=0.6)
+    plt.xlabel("PCA Component 1")
+    plt.ylabel("PCA Component 2")
+    plt.title("PCA of Customer Segments")
+    plt.colorbar(label="Cluster Label")
+    plt.show()
 
+# Boxplots to analyze feature distribution across clusters
+def plot_boxplots(data, labels, columns):
+    data_with_labels = pd.DataFrame(data, columns=["Fresh", "Milk", "Grocery", "Frozen", "Detergents_Paper", "Delicassen"])
+    data_with_labels["Cluster"] = labels
+    for column in columns:
+        plt.figure(figsize=(10, 6))
+        sns.boxplot(x="Cluster", y=column, data=data_with_labels)
+        plt.title(f"Boxplot of {column} by Cluster")
+        plt.show()
+
+# Apply K-Means clustering with different numbers of clusters
 def kmeans_clustering(data, n_clusters):
     kmeans = KMeans(n_clusters=n_clusters, random_state=42)
     labels = kmeans.fit_predict(data)
     silhouette_avg = silhouette_score(data, labels)
     inertia = kmeans.inertia_
-    print(f"Silhouette Score for K-Means (k={n_clusters}): {silhouette_avg}")
-    return labels, inertia
+    print(f"K-Means (k={n_clusters}): Silhouette Score={silhouette_avg}, Inertia={inertia}")
+    return labels, inertia, kmeans
 
-for k in range(2, 11):
-    labels, inertia = kmeans_clustering(train_data, n_clusters=k)
+# Run K-Means for a range of cluster numbers to identify customer segments
+print("K-Means Clustering Results:")
+for k in range(2, 6):  # Limiting to smaller clusters for meaningful customer segmentation
+    labels, inertia, kmeans_model = kmeans_clustering(train_data, n_clusters=k)
+    plot_pca_clusters(train_data, labels)
+    plot_boxplots(train_data, labels, ["Fresh", "Milk", "Grocery", "Frozen", "Detergents_Paper", "Delicassen"])
 
-    # --- Apply DBSCAN clustering with different eps and min_samples values. ---
-    # Evaluate using Silhouette Score.
-
-
+# Apply DBSCAN clustering with different eps and min_samples values
 def dbscan_tuning(data, eps_values, min_samples_values, output_file="dbscan_tuning_results.csv"):
     results = []
     for eps in eps_values:
@@ -80,32 +101,15 @@ def dbscan_tuning(data, eps_values, min_samples_values, output_file="dbscan_tuni
     results_df = pd.DataFrame(results)
     results_df.to_csv(output_file, index=False)
     print(f"DBSCAN tuning results saved to {output_file}")
+    return results_df
 
+# DBSCAN tuning values (adjust based on initial clustering results)
 eps_values = [0.1, 0.2, 0.5]
 min_samples_values = [3, 5, 10]
 dbscan_results = dbscan_tuning(train_data, eps_values, min_samples_values)
 
-# Visualization:
-# Use PCA to reduce dimensionality and visualize clusters.
-# Create boxplots for selected features to compare clusters.
-
-def plot_pca_clusters(data, labels):
-    pca = PCA(n_components=2)
-    reduced_data = pca.fit_transform(data)
-    plt.scatter(reduced_data[:, 0], reduced_data[:, 1], c=labels, cmap='viridis')
-    plt.xlabel("PCA Component 1")
-    plt.ylabel("PCA Component 2")
-    plt.title("PCA of Clusters")
-    plt.colorbar(label="Cluster Label")
-    plt.show()
-
-def plot_boxplots(data, labels, column):
-    data_with_labels = pd.DataFrame(data, columns=["Fresh", "Milk", "Grocery", "Frozen", "Detergents_Paper", "Delicassen"])
-    data_with_labels["Cluster"] = labels
-    plt.figure(figsize=(10, 6))
-    sns.boxplot(x="Cluster", y=column, data=data_with_labels)
-    plt.title(f"Boxplot of {column} by Cluster")
-    plt.show()
-
+# K-Means clustering visualization with boxplots to illustrate spending patterns
+k = 2  # This optimal k based on silhouette scores
+labels, _, _ = kmeans_clustering(train_data, n_clusters=k)
 plot_pca_clusters(train_data, labels)
-plot_boxplots(train_data, labels, "Fresh")
+plot_boxplots(train_data, labels, ["Fresh", "Milk", "Grocery", "Frozen", "Detergents_Paper", "Delicassen"])
